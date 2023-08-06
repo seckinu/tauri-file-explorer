@@ -3,8 +3,6 @@
 
 use std::{collections::HashMap, fs};
 
-use serde_json::Value;
-
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -18,7 +16,7 @@ fn change_directory(path: std::path::PathBuf) -> String {
 }
 
 #[tauri::command]
-fn get_directory(path: Option<String>) -> Vec<HashMap<String, Value>> {
+fn get_directory(path: Option<String>) -> Vec<HashMap<String, String>> {
     let dir_content =
         fs::read_dir(path.unwrap_or(".".to_string())).unwrap_or(fs::read_dir(".").unwrap());
 
@@ -27,28 +25,57 @@ fn get_directory(path: Option<String>) -> Vec<HashMap<String, Value>> {
     for c in dir_content {
         let file = c.unwrap();
 
-        let mut file_info: HashMap<String, Value> = HashMap::new();
+        let mut file_info: HashMap<String, String> = HashMap::new();
+        file_info.insert("path".to_string(), file.path().display().to_string());
         file_info.insert(
-            "path".to_string(),
-            Value::String(file.path().display().to_string()),
-        );
-        file_info.insert(
-            "file_type".to_string(),
+            "type".to_string(),
             match file.file_type().unwrap().is_dir() {
-                true => Value::String("directory".to_string()),
+                true => "directory".to_string(),
                 false => match file.file_type().unwrap().is_symlink() {
-                    true => Value::String("symlink".to_string()),
-                    false => Value::String("file".to_string()),
+                    true => "symlink".to_string(),
+                    false => "file".to_string(),
                 },
             },
         );
-        if file.file_type().unwrap().is_dir() {
-            file_info.insert("files".to_string(), Value::Array(Vec::new()));
-        }
 
         content.push(file_info);
     }
     return content;
+}
+
+#[tauri::command]
+fn get_file_info(path: &str) -> Result<HashMap<String, String>, ()> {
+    let file_result = fs::metadata(path);
+    match file_result {
+        Ok(file) => {
+            let mut file_info: HashMap<String, String> = HashMap::new();
+            file_info.insert(
+                "type".to_string(),
+                match file.file_type().is_dir() {
+                    true => "directory".to_string(),
+                    false => match file.file_type().is_symlink() {
+                        true => "symlink".to_string(),
+                        false => "file".to_string(),
+                    },
+                },
+            );
+
+            file_info.insert("path".to_string(), path.to_string());
+
+            return Ok(file_info);
+        }
+        Err(_) => Err(()),
+    }
+}
+
+#[tauri::command]
+fn dbl_click_file(path: &str) -> Result<(), ()> {
+    std::process::Command::new("cmd")
+        .args(["/C", "start", path])
+        .spawn()
+        .expect("failed to execute process");
+
+    Ok(())
 }
 
 fn main() {
@@ -66,7 +93,9 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             greet,
             change_directory,
-            get_directory
+            get_directory,
+            get_file_info,
+            dbl_click_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

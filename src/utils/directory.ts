@@ -1,48 +1,46 @@
 import { invoke } from "@tauri-apps/api";
-import { directory, file_structure } from "../types";
-import { createSignal } from "solid-js";
+import { file_structure } from "../types";
+
+export function get_upper_directory(dir: string) {
+  return dir.split("/").slice(0, -1).join("/");
+}
 
 export async function fetch_directory(path: string) {
   const x = await invoke<file_structure[]>("get_directory", {
     path: path,
   });
 
-  x.forEach((element) => {
-    if (element.file_type === "directory") {
-      const [files, setFiles] = createSignal<file_structure[]>([]);
-      const [toggled, setToggled] = createSignal<boolean>(false);
-
-      element.files = files;
-      element.setFiles = setFiles;
-      element.toggled = toggled;
-      element.setToggled = setToggled;
-    }
-  });
-
-  const [files, setFiles] = createSignal<file_structure[]>(x);
-  const [isToggled, setIsToggled] = createSignal<boolean>(false);
-
-  const final = {
-    file_type: "directory",
-    path: path,
-    files: files,
-    toggled: isToggled,
-    setToggled: setIsToggled,
-    setFiles: setFiles,
-  } as file_structure;
-
-  return final;
+  return x;
 }
 
-export function get_directories(path: string, start?: string) {
-  const directories: string[] = [];
+export async function fetch_file_info(path: string) {
+  const x = await invoke<file_structure>("get_file_info", {
+    path: path,
+  });
 
-  while (path.indexOf("\\") !== -1) {
-    if (start && path === start) break;
+  return x;
+}
 
-    path = path.substring(0, path.lastIndexOf("\\"));
-    directories.push(path);
+export function get_file_name(path: string) {
+  return path.substring(path.lastIndexOf("\\") + 1);
+}
+
+export function double_click_file(ev: MouseEvent, file: file_structure) {
+  switch (file.type) {
+    case "file":
+      invoke("dbl_click_file", {
+        path: file.path,
+      });
+      break;
+    case "symlink":
+      break;
+    default:
+      break;
   }
+}
 
-  return directories.reverse();
+export async function fetch_folder_contents(path: string) {
+  const x = await invoke<file_structure[]>("get_directory", {
+    path: path,
+  });
 }
